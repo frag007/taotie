@@ -1,4 +1,4 @@
-package com.frag.taotie;
+package com.frag.taotie.core;
 
 import com.frag.taotie.util.NamedThreadFactory;
 import org.slf4j.Logger;
@@ -8,8 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
-import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.ObjIntConsumer;
 
 /**
  * @author liuhj
@@ -40,7 +40,7 @@ public class TaotieActuator<T> {
     /**
      * 批量提交数据的业务方法
      */
-    private final Consumer<List<T>> benchCommit;
+    private final ObjIntConsumer<List<T>> benchCommit;
 
     /**
      * 数据入队的超时时间，单位为毫秒
@@ -105,7 +105,7 @@ public class TaotieActuator<T> {
 
     /**
      * @param queuePower      该值为2的幂数，计算2的幂后的结果为内部保存数据队列的数量。该数量与业务分库分表的表数量一致。
-     *                        业务数据<T>根据lambda表达式getPartitionKey获取业务分区键，与(队列数量 - 1)做&运算后，保存到对应的数据队列中。
+     *                        业务数据T根据lambda表达式getPartitionKey获取业务分区键，与(队列数量 - 1)做与运算后，保存到对应的数据队列中。
      *                        例：分库分表1024张表，对应1024的队列，则queuePower=10
      * @param benchCommitNum  批量提交数量
      * @param pollThreadPower 该值为2的幂数，计算2的幂后的结果为用于从数据队列中出队数据的线程数
@@ -117,7 +117,7 @@ public class TaotieActuator<T> {
      * @param benchCommit     批量提交数据的业务方法
      * @param getPartitionKey 从数据对象T中获取分区键的方法
      */
-    public TaotieActuator(int queuePower, int benchCommitNum, int pollThreadPower, int commitThreadNum, float queueCapacityFactor, int offerTimeout, int pollTimeout, Consumer<List<T>> benchCommit, Function<T, Number> getPartitionKey) {
+    public TaotieActuator(int queuePower, int benchCommitNum, int pollThreadPower, int commitThreadNum, float queueCapacityFactor, int offerTimeout, int pollTimeout, ObjIntConsumer<List<T>> benchCommit, Function<T, Number> getPartitionKey) {
         if (queuePower < QUEUE_POWER_MIN || queuePower > QUEUE_POWER_MAX) {
             log.error("参数queuePower设置异常 :: {}", queuePower);
             throw new IllegalArgumentException("参数queuePower设置异常");
@@ -283,7 +283,7 @@ public class TaotieActuator<T> {
             if (result > 0) {
                 commitThreadPool.execute(() -> {
                     long commitStart = System.currentTimeMillis();
-                    benchCommit.accept(list);
+                    benchCommit.accept(list, this.queueNum);
                     long commitEnd = System.currentTimeMillis();
                     log.info("{}-taotie处理器: 成功提交{}条记录，出队耗时{}毫秒，等待线程耗时{}毫秒，insert耗时{}毫秒，总耗时{}毫秒", Thread.currentThread().getName(), result, pollEnd - pollStart, commitStart - pollEnd, commitEnd - commitStart, commitEnd - pollStart);
                 });
